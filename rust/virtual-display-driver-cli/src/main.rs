@@ -1,12 +1,13 @@
 mod mode;
 
 use clap::Parser;
+use eyre::Context as _;
 use joinery::JoinableIterator;
 use lazy_format::lazy_format;
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 
-use driver_ipc::DriverClient;
+use driver_ipc::{DriverClient, Id, Monitor};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -108,7 +109,7 @@ struct RemoveCommand {
 
 fn main() -> eyre::Result<()> {
     let Args { options, command } = Args::parse();
-    let mut client = DriverClient::new()?;
+    let mut client = DriverClient::new().context("Failed to connect to Virtual Display Driver; please ensure the driver is installed and working")?;
 
     match command {
         Command::List => {
@@ -144,7 +145,8 @@ fn main() -> eyre::Result<()> {
 }
 
 fn persist(client: &mut DriverClient) -> eyre::Result<()> {
-    client.persist()
+    client.persist()?;
+    Ok(())
 }
 
 fn list(client: &mut DriverClient, opts: &GlobalOptions) -> eyre::Result<()> {
@@ -241,15 +243,18 @@ fn add_mode(
     opts: &GlobalOptions,
     command: AddModeCommand,
 ) -> eyre::Result<()> {
-    let monitor = client.find_monitor_mut_query(&command.id)?;
-    let id = monitor.id;
+    let (id, new_modes) = client.find_monitor_mut_query(&command.id, |monitor| {
+        let id = monitor.id;
 
-    let existing_modes = monitor.modes.iter().cloned().map(mode::Mode::from);
-    let new_modes = mode::merge(existing_modes.chain(command.mode));
-    let new_modes: Vec<driver_ipc::Mode> =
-        new_modes.into_iter().map(driver_ipc::Mode::from).collect();
+        let existing_modes = monitor.modes.iter().cloned().map(mode::Mode::from);
+        let new_modes = mode::merge(existing_modes.chain(command.mode));
+        let new_modes: Vec<driver_ipc::Mode> =
+            new_modes.into_iter().map(driver_ipc::Mode::from).collect();
 
-    monitor.modes = new_modes.clone();
+        monitor.modes = new_modes.clone();
+        (id, new_modes)
+    })?;
+
     client.notify()?;
 
     if opts.json {
@@ -267,15 +272,22 @@ fn remove_mode(
     opts: &GlobalOptions,
     command: &RemoveModeCommand,
 ) -> eyre::Result<()> {
-    let monitor = client.find_monitor_mut_query(&command.id)?;
-    let id = monitor.id;
+    let (id, new_modes) = client.find_monitor_mut_query(
+        &command.id,
+        |monitor: &mut Monitor| -> eyre::Result<(Id, Vec<driver_ipc::Mode>)> {
+            let id = monitor.id;
 
-    let modes = monitor.modes.iter().cloned().map(mode::Mode::from);
-    let new_modes = mode::remove(modes, &command.mode)?;
-    let new_modes: Vec<driver_ipc::Mode> =
-        new_modes.into_iter().map(driver_ipc::Mode::from).collect();
+            let modes = monitor.modes.iter().cloned().map(mode::Mode::from);
+            let new_modes = mode::remove(modes, &command.mode)?;
+            let new_modes: Vec<driver_ipc::Mode> =
+                new_modes.into_iter().map(driver_ipc::Mode::from).collect();
 
-    monitor.modes = new_modes.clone();
+            monitor.modes = new_modes.clone();
+
+            eyre::Result::Ok((id, new_modes))
+        },
+    )??;
+
     client.notify()?;
 
     if opts.json {

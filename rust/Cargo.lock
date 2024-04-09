@@ -280,13 +280,13 @@ dependencies = [
 name = "driver-ipc"
 version = "0.1.0"
 dependencies = [
- "eyre",
  "joinery",
  "lazy_format",
  "log",
  "owo-colors 4.0.0",
  "serde",
  "serde_json",
+ "thiserror",
  "win-pipes",
  "windows",
  "winreg",
@@ -667,7 +667,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a8b1990bd018761768d5e608a13df8bd1ac5f678456e0f301bb93e5f3ea16b"
 dependencies = [
  "cfg-if",
- "eyre",
  "indoc",
  "libc",
  "memoffset",
@@ -729,7 +728,6 @@ name = "pyvdd"
 version = "0.1.0"
 dependencies = [
  "driver-ipc",
- "eyre",
  "pyo3",
  "windows",
 ]
@@ -1223,9 +1221,9 @@ dependencies = [
 
 [[package]]
 name = "widestring"
-version = "1.0.2"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "653f141f39ec16bba3c5abe400a0c60da7468261cc2cbf36805022876bc721a8"
+checksum = "7219d36b6eac893fa81e84ebe06485e7dcbb616177469b142df14f1f4deb1311"
 
 [[package]]
 name = "win-pipes"
